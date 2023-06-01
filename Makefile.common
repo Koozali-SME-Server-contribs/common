@@ -89,6 +89,7 @@ RPM_BUILD_DIR ?= $(BUILDDIR)/$(NAME)-$(VERSION)
 #needed for archivefile rule
 TREEPATH := $(NAME)-$(VERSION)
 CODEDIR := "root"
+TEMPDIR := $(shell mktemp -d) 
 EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Source: //' | sed -E 's/^([^.]*\.)(.*)$/\2//')
 #ARCHIVEFILE=$(cat ${NAME}.spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | xargs basename)
 #ARCHIVEFILE=$(rpm --queryformat "${ARCHIVEFILE}\n" --specfile ${NAME}.spec | head -n 1)
@@ -347,15 +348,15 @@ endif
 
 # Create the .tar.gz or whatever file
 $(ARCHIVEFILE):
-	$(info "${NAME} $(ARCHIVEFILE)  $(TREEPATH)") 
-	$(info "Making archive file ${ARCHIVEFILE}")
-	if [ -d ${TREEPATH} ] ; then rm -Rf ${TREEPATH} ; fi ; \
-	mkdir -p ${TREEPATH} ; \
-	if [ -d ${CODEDIR} ] ; then cp -R "${CODEDIR}" "${TREEPATH}/root" ; fi ; \
-	if [ -e createlinks ] ; then cp createlinks "${TREEPATH}/." ; fi ; \
-	if [ -d additional ] ; then cp additional/* "${TREEPATH}/." ; fi ; \
-	tar -czf ${ARCHIVEFILE} ${TREEPATH} ;\
-	ls -l ${ARCHIVEFILE} ;
+	$(info "Making archive file ${ARCHIVEFILE}") 
+	mkdir -p "${TEMPDIR}/${TREEPATH}" ;\
+	if [ -d ${CODEDIR} ] ; then cp -R "${CODEDIR}" "${TEMPDIR}/${TREEPATH}" ; fi ; \
+	if [ -e createlinks ] ; then cp createlinks "${TEMPDIR}/${TREEPATH}/." ; fi ; \
+	if [ -d additional ] ; then cp additional/* "${TEMPDIR}/${TREEPATH}/." ; fi ; \
+	rm -f ${ARCHIVEFILE} ;\
+	tar -czf "${ARCHIVEFILE}" -C "${TEMPDIR}" "${TREEPATH}" ;\
+	ls -l ${ARCHIVEFILE} ;\
+	rm -Rf "${TEMPDIR}/${TREEPATH}/"
 
 test-srpm: srpm
 
