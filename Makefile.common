@@ -354,7 +354,7 @@ $(ARCHIVEFILE):
 	if [ -e createlinks ] ; then cp createlinks "${TEMPDIR}/${TREEPATH}/." ; fi ; \
 	if [ -d additional ] ; then cp additional/* "${TEMPDIR}/${TREEPATH}/." ; fi ; \
 	rm -f ${ARCHIVEFILE} ;\
-	tar -czf "${ARCHIVEFILE}" -C "${TEMPDIR}" "${TREEPATH}" ;\
+	tar -caf "${ARCHIVEFILE}" -C "${TEMPDIR}" "${TREEPATH}" ;\
 	ls -l ${ARCHIVEFILE} ;\
 	rm -Rf "${TEMPDIR}/${TREEPATH}/"
 
