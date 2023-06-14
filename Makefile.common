@@ -96,7 +96,7 @@ EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Sou
 ifeq (,$(wildcard archivefilename))
 ARCHIVEFILE := "$(NAME)-$(VERSION).tar.gz"
 else
-ARCHIVEFILE := $(cat archivefilename)
+ARCHIVEFILE := $(shell cat archivefilename)
 endif
 
 # default target: just make sure we've got the sources
