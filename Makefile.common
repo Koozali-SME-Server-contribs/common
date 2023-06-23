@@ -93,11 +93,12 @@ TEMPDIR := $(shell mktemp -d)
 EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Source: //' | sed -E 's/^([^.]*\.)(.*)$/\2//')
 #ARCHIVEFILE=$(cat ${NAME}.spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | xargs basename)
 #ARCHIVEFILE=$(rpm --queryformat "${ARCHIVEFILE}\n" --specfile ${NAME}.spec | head -n 1)
-ifeq (,$(wildcard archivefilename))
-ARCHIVEFILE := "$(NAME)-$(VERSION).tar.gz"
-else
-ARCHIVEFILE := $(shell cat archivefilename)
-endif
+#ifeq (,$(wildcard archivefilename))
+#ARCHIVEFILE := "$(NAME)-$(VERSION).tar.gz"
+#else
+#ARCHIVEFILE := $(shell cat archivefilename)
+#endif
+ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e "s/%{name}/$(NAME)/" -e "s/%{version}/$(VERSION)/" | xargs basename)
 
 # default target: just make sure we've got the sources
 all: sources
