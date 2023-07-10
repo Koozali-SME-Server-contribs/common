@@ -354,6 +354,7 @@ $(ARCHIVEFILE):
 	if [ -d ${CODEDIR} ] ; then cp -R "${CODEDIR}" "${TEMPDIR}/${TREEPATH}" ; fi ; \
 	if [ -e createlinks ] ; then cp createlinks "${TEMPDIR}/${TREEPATH}/." ; fi ; \
 	if [ -d additional ] ; then cp -r additional/* "${TEMPDIR}/${TREEPATH}/." ; fi ; \
+	find "${TEMPDIR}/${TREEPATH}/." -type f -name ".gitignore" -delete ; \
 	rm -f ${ARCHIVEFILE} ;\
 	tar -caf "${ARCHIVEFILE}" -C "${TEMPDIR}" "${TREEPATH}" ;\
 	ls -l ${ARCHIVEFILE} ;\
