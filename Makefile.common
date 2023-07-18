@@ -98,7 +98,7 @@ EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Sou
 #else
 #ARCHIVEFILE := $(shell cat archivefilename)
 #endif
-ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/" | xargs basename)
+ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/g" | xargs basename)
 
 # default target: just make sure we've got the sources
 all: sources
