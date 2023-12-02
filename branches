@@ -2,9 +2,15 @@ sme7:sme7:.el4.sme:rhel:4:7
 sme8:sme8:.el5.sme:rhel:5:8
 sme9:sme9:.el6.sme:rhel:6:9
 sme10:sme10:.el7.sme:rhel:7:10
+sme11:sme11:.el8.sme:rhel:1:11
+sme12:sme12:.el9.sme:rhel:9:12
 devel:sme10:.el7.sme:rhel:7:10
+devel:sme11:.el8.sme:rhel:8:11
+devel:sme12:.el9.sme:rhel:9:12
 contribs7:contribs7:.el4.sme:rhel:4:7
 contribs8:contribs8:.el5.sme:rhel:5:8
 contribs9:contribs9:.el6.sme:rhel:6:9
 contribs10:contribs10:.el7.sme:rhel:7:10
+contribs11:contribs11:.el8.sme:rhel:8:11
+contribs12:contribs12:.el9.sme:rhel:9:12
 devel:contribs7:.el4.sme:rhel:4:7
