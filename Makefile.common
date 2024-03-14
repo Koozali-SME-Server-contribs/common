@@ -21,11 +21,8 @@ HEAD_BRANCH := devel
 endif
 BASEDIR := $(shell basename `pwd`)
 # BRANCH := $(BASEDIR)
-VERG = $(shell [ `/usr/bin/git branch|awk  '{print $$2}'` == 'master' ] && echo 11 || echo `/usr/bin/git branch | awk  '{print $$2}'`)
-PREF = $(shell [ `/usr/bin/git config --get remote.origin.url| cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
-#BRANCH := $(shell cat contriborbase)
-BRANCH = "$(PREF)$(VERG)"
-$(info $$BRANCH is [${BRANCH}])
+# Get tag for module - e.g. contribs10 or sme10 from file left by cvs2git conversion script
+BRANCH := $(shell cat contriborbase)
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 TARGET := $(word 1, $(BRANCHINFO))
 DIST = $(word 2, $(BRANCHINFO))
@@ -158,7 +155,7 @@ $(shell cat sources 2>/dev/null | while read m f ; do if test "$$f" = "$@" ; the
 endef
 
 # list the possible targets for valid arches
-ARCHES = noarch i386 x86_64 aarch64 # i586 i686 ia64 s390 s390x ppc ppc64 pseries ppc64pseries iseries ppc64iseries athlon alpha alphaev6 sparc sparc64 sparcv9 sparcv9v sparc64v i164 mac sh mips geode
+ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pseries ppc64pseries iseries ppc64iseries athlon alpha alphaev6 sparc sparc64 sparcv9 sparcv9v sparc64v i164 mac sh mips geode
 
 # for the modules that do different "make prep" depending on what arch we build for
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
