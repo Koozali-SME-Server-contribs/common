@@ -22,7 +22,15 @@ endif
 BASEDIR := $(shell basename `pwd`)
 # BRANCH := $(BASEDIR)
 # Get tag for module - e.g. contribs10 or sme10 from file left by cvs2git conversion script
-BRANCH := $(shell cat contriborbase)
+#BRANCH := $(shell cat contriborbase)
+# using git
+#VERG = $(shell [ `/usr/bin/git branch|awk  '{print $$2}'` == 'master' ] && echo 11 || echo `/usr/bin/git branch | /usr/bin/awk  '{print $$2}'`)
+#PREF = $(shell [ `/usr/bin/git config --get remote.origin.url| cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
+# without git installed eg in chroot
+VERG = $(shell [ `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` == 'master' ] && echo 11 || echo `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` )
+PREF = $(shell [ `grep url -r .git/config | cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
+BRANCH := $(PREF)$(VERG)
+$(info $$BRANCH is $(BRANCH); $$VERG is $(VERG); $$PREF is $(PREF) )
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 TARGET := $(word 1, $(BRANCHINFO))
 DIST = $(word 2, $(BRANCHINFO))
@@ -374,9 +382,8 @@ tag::    $(SPECFILE) $(COMMON_DIR)/branches
 
 force-tag: $(SPECFILE) $(COMMON_DIR)/branches
 	@$(MAKE) tag TAG_OPTS="-F $(TAG_OPTS)"
-
 define find-user
-if [ `cat CVS/Root |grep -c [^:]@` -ne 0 ]; then cat CVS/Root  |cut -d @ -f 1 |  sed 's/:.*://' ; else echo $(USER); fi
+if [ -f CVS/Root ] ; then if [ `cat CVS/Root |grep -c [^:]@` -ne 0 ]; then cat CVS/Root  |cut -d @ -f 1 |  sed 's/:.*://' ; else echo $(USER); fi ; else echo $(USER);fi
 endef
 USER := $(shell $(find-user))
 
