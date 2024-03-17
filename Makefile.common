@@ -584,12 +584,12 @@ commitcvs:
 	@rm -f clog
 
 commit: clog
-	@git commit -m $?
+	@git commit -F clog
 	@rm -f clog
 	@git push
 
 commitonly: clog
-	@git commit -m $?
+	@git commit -F clog
 	@rm -f clog
 
 push:
