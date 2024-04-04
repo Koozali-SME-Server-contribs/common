@@ -430,7 +430,7 @@ plague: build-checkcvs $(COMMON_DIR)/branches
 
 koji: build-check $(COMMON_DIR)/branches
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(info $(BUILD_CLIENT) $(SECONDARY_CONFIG) build $(BUILD_FLAGS) dist-$(TARGET)-$(KOJI_BUILD) '$(GIT_URL)')
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
 
 kojicvs: build-check $(COMMON_DIR)/branches
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
