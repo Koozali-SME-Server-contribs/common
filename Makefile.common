@@ -175,7 +175,7 @@ ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pserie
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
 ## list all our bogus targets
-.PHONY :: $(ARCHES) commit sources uploadsource upload export check build-check plague koji build cvsurl chain-build test-srpm srpm tag force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-%
+.PHONY :: $(ARCHES) clog commit sources uploadsource upload export check build build-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-%
 
 # The TARGETS define is meant for local module targets that should be
 # made in addition to the SOURCEFILES whenever needed
@@ -323,7 +323,7 @@ install-short: sources $(TARGETS)
 CVS_ROOT	:= $(shell if [ -f CVS/Root ] ; then cat CVS/Root ; fi)
 CVS_REPOSITORY	:= $(shell if [ -f CVS/Repository ] ; then cat CVS/Repository ; fi)
 GIT_REPOSITORY  := $(shell basename `git rev-parse --show-toplevel`)
-CVS_URL		:= cvs://shell.koozali.org/cvs/smecontribs?$(CVS_REPOSITORY)\#$(TAG)
+#CVS_URL		:= cvs://shell.koozali.org/cvs/smecontribs?$(CVS_REPOSITORY)\#$(TAG)
 GIT_URL		:= git+https://src.koozali.org/$(GIT_ORG)/$(GIT_REPOSITORY)\#$(TAG)
 
 ## create a clean exported copy in $(TMPCVS)
@@ -383,16 +383,14 @@ verrel:
 
 # If you build a new version into the tree, first do "make tag",
 # then "make srpm", then build the package.  
-tagcvs:: $(SPECFILE) $(COMMON_DIR)/branches
-	cvs tag $(TAG_OPTS) -c $(TAG)
-	@echo "Tagged with: $(TAG)"
-	@echo
-
 tag::    $(SPECFILE) $(COMMON_DIR)/branches
 	git tag $(TAG_OPTS) -a $(TAG) -m $(TAG)
 	git push --tag
 	@echo "Tagged with: $(TAG)"
 	@echo
+
+tagbuild: tag  build clog
+	@rm -f clog
 
 force-tag: $(SPECFILE) $(COMMON_DIR)/branches
 	@$(MAKE) tag TAG_OPTS="-F $(TAG_OPTS)"
@@ -402,56 +400,31 @@ if [ -f CVS/Root ] ; then if [ `cat CVS/Root |grep -c [^:]@` -ne 0 ]; then cat C
 endef
 USER := $(shell $(find-user))
 
-oldbuild:   $(COMMON_DIR)/branches
-	@if [ -z "$(TARGET)" -a ! -d CVS ]; then echo "Must be in a branch subdirectory"; exit 1; fi
-
-	@cvs status -v $(SPECFILE) 2>/dev/null | grep -q $(TAG); ret=$$? ;\
-	if [ $$ret -ne 0 ]; then echo "$(SPECFILE) not tagged with tag $(TAG)"; exit 1;  fi	
-
-	@(pushd $(COMMON_DIR) >/dev/null ;\
-	rm -f tobuild ;\
-	cvs -Q update -C tobuild ;\
-	echo -e "$(USER)\t$(CVS_REPOSITORY)\t$(TAG)\t$(TARGET)" >> tobuild ;\
-	cvs commit -m "request build of $(CVS_REPOSITORY) $(TAG) for $(TARGET)" tobuild ;\
-	popd >/dev/null)
-
-build-checkcvs: $(SPECFILE)
-	@if [ -z "$(TARGET)" -o ! -d CVS ]; then echo "Must be in a branch subdirectory"; exit 1; fi
-	@cvs -f status -v $(SPECFILE) 2>/dev/null | grep -q $(TAG); ret=$$? ;\
-	if [ $$ret -ne 0 ]; then echo "$(SPECFILE) not tagged with tag $(TAG)"; exit 1;  fi
-
 build-check: $(SPECFILE)
 	@git tag 2>/dev/null | grep -q $(TAG); ret=$$? ;\
 	if [ $$ret -ne 0 ]; then echo "$(SPECFILE) not tagged with tag $(TAG)"; exit 1;  fi
-
-plague: build-checkcvs $(COMMON_DIR)/branches
-	@if [ ! -x "$(PLAGUE_CLIENT)" ]; then echo "Must have plague-client installed - see http://fedoraproject.org/wiki/Extras/BuildSystemClientSetup"; exit 1; fi
-	$(PLAGUE_CLIENT) build $(NAME) $(TAG) $(TARGET)
 
 koji: build-check $(COMMON_DIR)/branches
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
 	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
 
-kojicvs: build-check $(COMMON_DIR)/branches
-	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build $(BUILD_FLAGS) $(TARGET) '$(CVS_URL)'
-
 #ifneq (, $(filter devel, $(BRANCH)))
-build: koji
+build:: koji
 #else
 #build: plague
 #endif
 
+# TODO rework or remove
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET) '$(CVS_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
 
-
+# TODO rework or remove
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET) '$(CVS_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
 
-
+# TODO rework or remove
 bodhi: build-check $(COMMON_DIR)/branches clog 
 	@if [ ! -x "$(BODHI_CLIENT)" ]; then echo "Must have bodhi-client installed"; exit 1; fi
 	@echo -e "\
@@ -481,12 +454,10 @@ ifneq (, $(filter contribs7 contribs8 contribs9, $(BRANCH)))
 update: bodhi
 endif
 
-cvsurl:
-	@echo '$(CVS_URL)'
-
 giturl:
 	 @echo '$(GIT_URL)'
 
+# TODO rework or remove
 chain-build: build-check
 	@if [ -z "$(CHAIN)" ]; then \
                 echo "Missing CHAIN variable, please specify the order of packages to" ; \
@@ -511,20 +482,22 @@ chain-build: build-check
                 mkdir -p .tmp-$$$$ ; \
                 pushd .tmp-$$$$ > /dev/null ; \
                 cvs -f -Q -z 3 -d $(CVS_ROOT) co $$component ; \
-                urls="$$urls `make -s -C $$component/$$subdir cvsurl`" ; \
+                urls="$$urls `make -s -C $$component/$$subdir giturl`" ; \
                 popd > /dev/null ; \
                 rm -rf .tmp-$$$$ ; \
         done ; \
         if [ -z "$(findstring :,$(CHAIN))" ]; then \
                 urls="$$urls :" ; \
         fi ; \
-        urls="$$urls `make -s cvsurl`" ; \
+        urls="$$urls `make -s giturl`" ; \
         $(BUILD_CLIENT) chain-build $(BUILD_FLAGS) $(TARGET) $$urls
 
+# TODO rework or remove
 # "make new | less" to see what has changed since the last tag was assigned
 new:
 	-@cvs diff -u -r$$(cvs log Makefile 2>/dev/null | awk '/^symbolic names:$$/ {getline; sub(/^[ \t]*/, "") ; sub (/:.*$$/, ""); print; exit 0}')
 
+# TODO rework or remove
 # mop up, printing out exactly what was mopped.
 clean ::
 	@echo "Running the %clean script of the rpmbuild..."
@@ -578,10 +551,6 @@ rediff:
 
 clog: $(SPECFILE)
 	@sed -n '/^%changelog/,/^$$/{/^%/d;/^$$/d;s/%%/%/g;p}' $(SPECFILE) | tee $@
-commitcvs:
-	clog
-	@cvs commit -F $?
-	@rm -f clog
 
 commit: clog
 	@git commit -F clog
@@ -614,6 +583,7 @@ help:
 	@echo "	check			Check test srpm preps on all archs"
 	@echo "	srpm			Create a srpm"
 	@echo "	tag			Tag sources as \"$(TAG)\""
+	@echo " tagbuild                Tag sources as \"$(TAG)\" and then build"
 	@echo "	build			Request build of \"$(TAG)\" for $(TARGET)"
 	@echo "	chain-build		Build current package in order with other packages"
 	@echo "		example:  make chain-build CHAIN='libwidget libgizmo'"
@@ -631,7 +601,9 @@ help:
 	@echo "	verrel			Echo \"$(NAME)-$(VERSION)-$(RELEASE)\""
 	@echo "	new			Diff against last tag"
 	@echo "	clog			Make a clog file containing top changelog entry"
-	@echo "	commit			Commit to CVS using the clog file as the log message"
+	@echo "	commit			Commit and push to GIT using the clog file as the log message"
+	@echo " commitonly              Commit to GIT using the clog file as the log message"
+	@echo " push                    Push  to GIT after a git commit or make commitonly"
 	@echo "	clean			Remove srcs ($(SOURCEFILES)), export dir (cvs-$(TAG)) and srpm ($(NAME)-$(VERSION)-$(RELEASE).src.rpm)"
 	@echo "	patch SUFFIX=<suff>	Create and add a gendiff patch file"
 	@echo "	rediff SUFFIX=<suff>	Recreates a gendiff patch file, retaining comments"
