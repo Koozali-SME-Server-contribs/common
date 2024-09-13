@@ -20,20 +20,18 @@ ifndef HEAD_BRANCH
 HEAD_BRANCH := devel
 endif
 BASEDIR := $(shell basename `pwd`)
-# BRANCH := $(BASEDIR)
-# Get tag for module - e.g. contribs10 or sme10 from file left by cvs2git conversion script
-#BRANCH := $(shell cat contriborbase)
 # using git
 #VERG = $(shell [ `/usr/bin/git branch|awk  '{print $$2}'` == 'master' ] && echo 11 || echo `/usr/bin/git branch | /usr/bin/awk  '{print $$2}'`)
 #PREF = $(shell [ `/usr/bin/git config --get remote.origin.url| cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
 # without git installed eg in chroot
+# TODO change strategy for SME12 and above branch SME11 branch SME12 instead of master
 VERG = $(shell [ `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` == 'master' ] && echo 11 || echo `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` )
-PREF = $(shell [ `grep url -r .git/config | cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
+PREF = $(shell [ `grep url -r .git/config | cut -d/ -f4` == "smecontribs" ] && echo 'contribs' || echo 'sme')
 BRANCH := $(PREF)$(VERG)
 $(info $$BRANCH is $(BRANCH); $$VERG is $(VERG); $$PREF is $(PREF) )
 # gitea=>koji specific : smeserver=>os smecontrib=>smecontrib
 KOJI_BUILD := $(if  $(filter sme,$(PREF)),os,contribs)
-GIT_ORG := $(if  $(filter sme,$(PREF)),smeserver,smecontrib)
+GIT_ORG := $(if  $(filter sme,$(PREF)),smeserver,smecontribs)
 
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 TARGET := $(word 1, $(BRANCHINFO))
