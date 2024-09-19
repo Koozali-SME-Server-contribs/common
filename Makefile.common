@@ -262,7 +262,15 @@ ifneq (, $(shell which git))
 	ls -l ${ARCHIVEFILE} ;\
 	rm -Rf "${TEMPDIR}/${TREEPATH}/"
 else
-  $(info git not available, keeping archive ${ARCHIVEFILE}  as is (buildsystem mock?))
+	@mkdir -p "${TEMPDIR}/${TREEPATH}" ;\
+	if [ -d ${CODEDIR} ] ; then cp -R "${CODEDIR}" "${TEMPDIR}/${TREEPATH}" ; fi ; \
+	if [ -e createlinks ] ; then cp createlinks "${TEMPDIR}/${TREEPATH}/." ; fi ; \
+	if [ -d additional ] ; then cp -r additional/* "${TEMPDIR}/${TREEPATH}/." ; fi ; \
+	find "${TEMPDIR}/${TREEPATH}/." -type f -name ".gitignore" -delete ; \
+	[ -f ${ARCHIVEFILE} ] || tar -caf "${ARCHIVEFILE}" -C "${TEMPDIR}" "${TREEPATH}" ;\
+	ls -l ${ARCHIVEFILE} ;\
+	rm -Rf "${TEMPDIR}/${TREEPATH}/"
+	$(info keeping ${ARCHIVEFILE} archive if exist (Builder mock))
 endif
 
 test-srpm: srpm
