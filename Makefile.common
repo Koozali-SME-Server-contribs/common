@@ -92,6 +92,7 @@ endif
 ifndef RELEASE
 RELEASE := $(word 2, $(VER_REL))
 endif
+$(info $$VER_REL is ${VER_REL} version is ${VERSION})
 # this is used in make patch, maybe make clean eventually.
 # would be nicer to autodetermine from the spec file...
 RPM_BUILD_DIR ?= $(BUILDDIR)/$(NAME)-$(VERSION)
@@ -109,6 +110,7 @@ EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Sou
 #ARCHIVEFILE := $(shell cat archivefilename)
 #endif
 ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/g" | xargs basename)
+#$(info $$VER_REL is ${VER_REL} version is ${VERSION} ARCHIVEFILE is ${ARCHIVEFILE})
 
 # default target: 
 all: 
