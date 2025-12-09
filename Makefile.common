@@ -318,12 +318,12 @@ build:: koji
 # TODO rework or remove
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
 
 # TODO rework or remove
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
 
 # TODO rework or remove
 bodhi: build-check $(COMMON_DIR)/branches clog 
