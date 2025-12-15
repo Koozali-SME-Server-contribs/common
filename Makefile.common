@@ -21,20 +21,27 @@ HEAD_BRANCH := devel
 endif
 BASEDIR := $(shell basename `pwd`)
 # using git
-#VERG = $(shell [ `/usr/bin/git branch|awk  '{print $$2}'` == 'master' ] && echo 11 || echo `/usr/bin/git branch | /usr/bin/awk  '{print $$2}'`)
-#PREF = $(shell [ `/usr/bin/git config --get remote.origin.url| cut -d/ -f4` == "smecontrib" ] && echo 'contrib' || echo 'sme')
+#GIT_BRANCH = $(shell git branch --list | cut -d' ' -f2)
 # without git installed eg in chroot
-# TODO change strategy for SME12 and above branch SME11 branch SME12 instead of master
-VERG = $(shell [ `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` == 'master' ] && echo 11 || echo `sed -r 's/\[branch "(.*)"\]/\1/;t;d' .git/config` )
+GIT_BRANCH = $(shell grep 'branch' .git/config | cut -d'"' -f2)
+
+# Will allow build from individual branch if the HEAD specifies a TARGET in the common/branches file (e.g. sme11 or contribs11)
+# Defaults to version contained in file current if HEAD=master (with prefix of either sme or contribs based on GITEA organisation)
+CURRENT = $(shell cat $(COMMON_DIR)/current)
 PREF = $(shell [ `grep url -r .git/config | cut -d/ -f4` == "smecontribs" ] && echo 'contribs' || echo 'sme')
-BRANCH := $(PREF)$(VERG)
-$(info $$BRANCH is $(BRANCH); $$VERG is $(VERG); $$PREF is $(PREF) )
-# gitea=>koji specific : smeserver=>os smecontrib=>smecontrib
-KOJI_BUILD := $(if  $(filter sme,$(PREF)),os,contribs)
-GIT_ORG := $(if  $(filter sme,$(PREF)),smeserver,smecontribs)
+ifdef TARGET
+BRANCH = $(word 1, $(TARGET))
+else
+BRANCH = $(shell [ $(GIT_BRANCH) == "master" ] && echo $(PREF)$(CURRENT) || echo $(GIT_BRANCH))
+endif
+
+# check BRANCH against common/branches to ensure that it exists
+branch-check:
+	@if ! grep -q "$(BRANCH)" $(COMMON_DIR)/branches; then echo "Unknown BRANCH '$(BRANCH)'" ; exit 1; fi
+
+$(eval $(foreach t,$(MAKECMDGOALS),$(t): branch-check))
 
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
-TARGET := $(word 1, $(BRANCHINFO))
 DIST = $(word 2, $(BRANCHINFO))
 DISTVAR = $(word 3, $(BRANCHINFO))
 DISTVAL = $(word 4, $(BRANCHINFO))
@@ -45,6 +52,25 @@ DIST_DEFINES = --define "dist $(DIST)" --define "$(DISTVAR) $(DISTVAL)" --define
 BUILD_FLAGS ?= $(KOJI_FLAGS)
 
 LOCALARCH := $(if $(shell grep -i '^BuildArch:.*noarch' $(SPECFILE)), noarch, $(shell uname -m))
+
+# use calculated TARGET unless defined/passed as parameter
+ifndef TARGET
+TARGET = $(word 1, $(BRANCHINFO))
+endif
+
+# check list of TARGETs against common/branches to check that they are correct
+target-check:
+	@if [[ -z "$(TARGET)" ]]; then echo "No valid TARGET for $(BRANCH) found"; exit 1; fi 
+	@if [[ -n "$(word 2, $(TARGET))" ]] ; then echo "Multi-targets NOT supported YET!"; exit 1; fi
+	@for t in $(TARGET); do \
+		if ! grep -q "^$$t:" $(COMMON_DIR)/branches; then \
+			echo "Unknown TARGET '$$t'" ; \
+			exit 1; \
+		fi; \
+	done
+	@echo "TARGET validation OK"
+
+$(eval $(foreach t,$(MAKECMDGOALS),$(t): target-check))
 
 ## a base directory where we'll put as much temporary working stuff as we can
 ifndef WORKDIR
@@ -163,7 +189,7 @@ ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pserie
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
 ## list all our bogus targets
-.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit sources uploadsource upload check build build-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-%
+.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
 
 # The TARGETS define is meant for local module targets that should be
 # made in addition to the SOURCEFILES whenever needed
@@ -224,8 +250,8 @@ install-short: sources $(TARGETS)
 
 #TODO remove was CVS specific
 CVS_ROOT	:= $(shell if [ -f CVS/Root ] ; then cat CVS/Root ; fi)
-GIT_REPOSITORY  := $(shell basename `git rev-parse --show-toplevel`)
-GIT_URL		:= git+https://src.koozali.org/$(GIT_ORG)/$(GIT_REPOSITORY)\#$(TAG)
+RAW_URL     := $(shell grep url -r .git/config | cut -d= -f2 | sed 's/^[[:space:]]*//')
+GIT_URL     := git+$(RAW_URL)\#$(TAG)
 
 ## build a test-srpm and see if it will -bp on all arches 
 # XXX: I am not sure exactly what this is supposed to really do, since the
@@ -282,9 +308,17 @@ test-srpm: srpm
 verrel:
 	@echo $(NAME)-$(VERSION)-$(RELEASE)
 
+showinfo:
+# show values of some of the key calculated variables
+	$(info $$PREF is ${PREF})
+	$(info $$GIT_URL is ${GIT_URL}) 
+	$(info $$GIT_BRANCH is ${GIT_BRANCH})
+	$(info $$BRANCH is ${BRANCH}) 
+	$(info $$TARGET is ${TARGET})
+
 # If you build a new version into the tree, first do "make tag",
 # then "make srpm", then build the package.  
-tag::    $(SPECFILE) $(COMMON_DIR)/branches
+tag:    $(SPECFILE) $(COMMON_DIR)/branches
 	git tag $(TAG_OPTS) -a $(TAG) -m $(TAG)
 	git push --tag
 	@echo "Tagged with: $(TAG)"
@@ -307,10 +341,10 @@ build-check: $(SPECFILE)
 
 koji: build-check $(COMMON_DIR)/branches
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
 
 #ifneq (, $(filter devel, $(BRANCH)))
-build:: koji
+build: koji
 #else
 #build: plague
 #endif
@@ -318,12 +352,12 @@ build:: koji
 # TODO rework or remove
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
 
 # TODO rework or remove
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET)-$(KOJI_BUILD) '$(GIT_URL)'
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
 
 # TODO rework or remove
 bodhi: build-check $(COMMON_DIR)/branches clog 
@@ -400,7 +434,7 @@ new:
 
 # TODO rework or remove
 # mop up, printing out exactly what was mopped.
-clean ::
+clean :
 	@echo "Running the %clean script of the rpmbuild..."
 	-@$(RPM_WITH_DIRS) --clean --nodeps $(SPECFILE)
 	#@for F in $(FULLSOURCEFILES); do \
@@ -481,7 +515,7 @@ help:
 	@echo "	check			Check test srpm preps on all archs"
 	@echo "	srpm			Create a srpm"
 	@echo "	tag			Tag sources as \"$(TAG)\""
-	@echo " tagbuild                Tag sources as \"$(TAG)\" and then build"
+	@echo "	tagbuild		Tag sources as \"$(TAG)\" and then build"
 	@echo "	build			Request build of \"$(TAG)\" for $(TARGET)"
 	@echo "	chain-build		Build current package in order with other packages"
 	@echo "		example:  make chain-build CHAIN='libwidget libgizmo'"
@@ -492,21 +526,22 @@ help:
 	@echo "		  the next group will begin building."
 	@echo "		If no groups are defined, packages will be built sequentially."
 	@echo "	scratch-build		Request scratch build of \"$(TAG)\" for $(TARGET)"
-	@echo "	scratch-build-<archs>   Request scratch build of \"$(TAG)\" for $(TARGET) and archs <archs>"
+	@echo "	scratch-build-<archs>	Request scratch build of \"$(TAG)\" for $(TARGET) and archs <archs>"
 	@echo "		examples:  make scratch-build-i386,ppc64"
-	@echo "		           make scratch-build-x86_64"
+	@echo "			   make scratch-build-x86_64"
 	@echo "	mockbuild		Local test build using mock"
 	@echo "	verrel			Echo \"$(NAME)-$(VERSION)-$(RELEASE)\""
+	@echo "	showinfo		Display values for some key calculated variables"
 	@echo "	new			Diff against last tag"
 	@echo "	clog			Make a clog file containing top changelog entry"
 	@echo "	commit			Commit and push to GIT using the clog file as the log message"
-	@echo " commitonly              Commit to GIT using the clog file as the log message"
-	@echo " push                    Push  to GIT after a git commit or make commitonly"
+	@echo "	commitonly		Commit to GIT using the clog file as the log message"
+	@echo "	push			Push  to GIT after a git commit or make commitonly"
 	@echo "	clean			Remove srcs and srpm ($(NAME)-$(VERSION)-$(RELEASE).src.rpm)"
 	@echo "	patch SUFFIX=<suff>	Create and add a gendiff patch file"
 	@echo "	rediff SUFFIX=<suff>	Recreates a gendiff patch file, retaining comments"
 	@echo "	unused-patches		Print list of patches not referenced by name in specfile"
-	@echo "	unused-fedora-patches   Print Fedora patches not used by Patch and/or ApplyPatch directives"
+	@echo "	unused-fedora-patches	Print Fedora patches not used by Patch and/or ApplyPatch directives"
 	@echo "	gimmespec		Print the name of the specfile"
 	@echo "	update			Submit $(NAME)-$(VERSION)-$(RELEASE) as an update for $(BRANCH)"
 
