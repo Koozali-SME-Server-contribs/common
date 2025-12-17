@@ -39,7 +39,7 @@ endif
 branch-check:
 	@if ! grep -q "$(BRANCH)" $(COMMON_DIR)/branches; then echo "Unknown BRANCH '$(BRANCH)'" ; exit 1; fi
 
-$(eval $(foreach t,$(MAKECMDGOALS),$(t): branch-check))
+$(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): branch-check)))
 
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 DIST = $(word 2, $(BRANCHINFO))
@@ -70,7 +70,7 @@ target-check:
 	done
 	@echo "TARGET validation OK"
 
-$(eval $(foreach t,$(MAKECMDGOALS),$(t): target-check))
+$(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): target-check)))
 
 ## a base directory where we'll put as much temporary working stuff as we can
 ifndef WORKDIR
