@@ -20,6 +20,7 @@ ifndef HEAD_BRANCH
 HEAD_BRANCH := devel
 endif
 BASEDIR := $(shell basename `pwd`)
+# get and store the GIT branch for later use
 # using git
 #GIT_BRANCH = $(shell git branch --list | cut -d' ' -f2)
 # without git installed eg in chroot
@@ -41,6 +42,7 @@ branch-check:
 
 $(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): branch-check)))
 
+# grab all the requierd info from common/branches for this BRANCH
 BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 DIST = $(word 2, $(BRANCHINFO))
 DISTVAR = $(word 3, $(BRANCHINFO))
@@ -53,7 +55,7 @@ BUILD_FLAGS ?= $(KOJI_FLAGS)
 
 LOCALARCH := $(if $(shell grep -i '^BuildArch:.*noarch' $(SPECFILE)), noarch, $(shell uname -m))
 
-# use calculated TARGET unless defined/passed as parameter
+# use TARGET for this BRANCH from common/branches unless defined/passed as parameter
 ifndef TARGET
 TARGET = $(word 1, $(BRANCHINFO))
 endif
@@ -61,14 +63,12 @@ endif
 # check list of TARGETs against common/branches to check that they are correct
 target-check:
 	@if [[ -z "$(TARGET)" ]]; then echo "No valid TARGET for $(BRANCH) found"; exit 1; fi 
-	@if [[ -n "$(word 2, $(TARGET))" ]] ; then echo "Multi-targets NOT supported YET!"; exit 1; fi
 	@for t in $(TARGET); do \
 		if ! grep -q "^$$t:" $(COMMON_DIR)/branches; then \
 			echo "Unknown TARGET '$$t'" ; \
 			exit 1; \
 		fi; \
 	done
-	@echo "TARGET validation OK"
 
 $(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): target-check)))
 
@@ -250,6 +250,7 @@ install-short: sources $(TARGETS)
 
 #TODO remove was CVS specific
 CVS_ROOT	:= $(shell if [ -f CVS/Root ] ; then cat CVS/Root ; fi)
+# get the url from .git/config, prefix with git+ and append TAG for koji building
 RAW_URL     := $(shell grep url -r .git/config | cut -d= -f2 | sed 's/^[[:space:]]*//')
 GIT_URL     := git+$(RAW_URL)\#$(TAG)
 
@@ -341,7 +342,9 @@ build-check: $(SPECFILE)
 
 koji: build-check $(COMMON_DIR)/branches
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
+	@for t in $(TARGET); do \
+	    $(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$$t" '$(GIT_URL)'; \
+	done
 
 #ifneq (, $(filter devel, $(BRANCH)))
 build: koji
@@ -349,15 +352,18 @@ build: koji
 #build: plague
 #endif
 
-# TODO rework or remove
+# scratch-build will only use the first target and ignore all others (if it gets this far)
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
+	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch $(BUILD_FLAGS) $(SCRATCH_TARGET) '$(GIT_URL)'
 
-# TODO rework or remove
+# TODO Target checking is not performed for scratch-build-<arch>
+# scratch-build will only use the first target and ignore all others (if it gets this far)
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(TARGET) '$(GIT_URL)'
+	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --scratch --arch-override=$* $(BUILD_FLAGS) $(SCRATCH_TARGET) '$(GIT_URL)'
 
 # TODO rework or remove
 bodhi: build-check $(COMMON_DIR)/branches clog 
@@ -425,7 +431,8 @@ chain-build: build-check
                 urls="$$urls :" ; \
         fi ; \
         urls="$$urls `make -s giturl`" ; \
-        $(BUILD_CLIENT) chain-build $(BUILD_FLAGS) $(TARGET) $$urls
+		$(eval CHAIN_TARGET := $(firstword $(TARGET))) ; \
+        $(BUILD_CLIENT) chain-build $(BUILD_FLAGS) $(CHAIN_TARGET) $$urls
 
 # TODO rework or remove
 # "make new | less" to see what has changed since the last tag was assigned
