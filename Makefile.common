@@ -252,7 +252,13 @@ install-short: sources $(TARGETS)
 CVS_ROOT	:= $(shell if [ -f CVS/Root ] ; then cat CVS/Root ; fi)
 # get the url from .git/config, prefix with git+ and append TAG for koji building
 RAW_URL     := $(shell grep url -r .git/config | cut -d= -f2 | sed 's/^[[:space:]]*//')
-GIT_URL     := git+$(RAW_URL)\#$(TAG)
+#GIT_URL     := git+$(RAW_URL)\#$(TAG)
+GIT_REPOSITORY := $(shell basename $(RAW_URL))
+GIT_ORG := $(shell basename `dirname $(RAW_URL)`)
+# some people will clone from ssh and some from https.
+# koji has only read https access. Also, src.koozali.org points to the https
+# while git.koozali.org, for ssh, points to a different ip 
+GIT_URL     := git+https://src.koozali.org/$(GIT_ORG)/$(GIT_REPOSITORY)\#$(TAG)
 
 ## build a test-srpm and see if it will -bp on all arches 
 # XXX: I am not sure exactly what this is supposed to really do, since the
