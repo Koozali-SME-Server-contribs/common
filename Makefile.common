@@ -137,7 +137,7 @@ EXT := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | head -n 1 | sed 's/Sou
 #endif
 #ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/g" | xargs basename)
 # we expect archive tgz gz or xz
-ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/g" |grep -E "z$$" | xargs basename)
+ARCHIVEFILE := $(shell cat $(NAME).spec | grep -e '^[S|s]ource' | sed -r 's/^[S|s]ource[0-9]?:\s?//' | sed -e 's/\s//g' -e 's/{//g' -e 's/}//g' -e "s/%name/$(NAME)/g" -e "s/%version/$(VERSION)/g" |grep -E "z$$" | xargs basename)
 #$(info $$VER_REL is ${VER_REL} version is ${VERSION} ARCHIVEFILE is ${ARCHIVEFILE})
 
 # default target: 
