@@ -118,7 +118,7 @@ endif
 ifndef RELEASE
 RELEASE := $(word 2, $(VER_REL))
 endif
-$(info $$VER_REL is ${VER_REL} version is ${VERSION})
+#$(info $$VER_REL is ${VER_REL} version is ${VERSION})
 # this is used in make patch, maybe make clean eventually.
 # would be nicer to autodetermine from the spec file...
 RPM_BUILD_DIR ?= $(BUILDDIR)/$(NAME)-$(VERSION)
@@ -189,7 +189,7 @@ ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pserie
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
 ## list all our bogus targets
-.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
+.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
 
 # The TARGETS define is meant for local module targets that should be
 # made in addition to the SOURCEFILES whenever needed
@@ -322,6 +322,10 @@ showinfo:
 	$(info $$GIT_BRANCH is ${GIT_BRANCH})
 	$(info $$BRANCH is ${BRANCH}) 
 	$(info $$TARGET is ${TARGET})
+	$(info $$VER_REL is ${VER_REL})
+	$(info $$version is ${VERSION})
+	$(info COMMIT URL is $(shell $(MAKE) --no-print-directory commiturl))
+	@:
 
 # If you build a new version into the tree, first do "make tag",
 # then "make srpm", then build the package.  
@@ -331,7 +335,7 @@ tag:    $(SPECFILE) $(COMMON_DIR)/branches
 	@echo "Tagged with: $(TAG)"
 	@echo
 
-tagbuild: tag  build clog
+tagbuild: tag  build clog commiturl
 	@rm -f clog
 
 force-tag: $(SPECFILE) $(COMMON_DIR)/branches
@@ -403,6 +407,9 @@ endif
 
 giturl:
 	 @echo '$(GIT_URL)'
+
+commiturl:
+	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://koozali.org|')/src/commit/$$(git rev-parse HEAD)
 
 # TODO rework or remove
 chain-build: build-check
@@ -553,6 +560,8 @@ help:
 	@echo "	clean			Remove srcs and srpm ($(NAME)-$(VERSION)-$(RELEASE).src.rpm)"
 	@echo "	patch SUFFIX=<suff>	Create and add a gendiff patch file"
 	@echo "	rediff SUFFIX=<suff>	Recreates a gendiff patch file, retaining comments"
+	@echo "	commiturl               displays https url to git last commit"
+	@echo "	giturl                  displays https url for last tag"
 	@echo "	unused-patches		Print list of patches not referenced by name in specfile"
 	@echo "	unused-fedora-patches	Print Fedora patches not used by Patch and/or ApplyPatch directives"
 	@echo "	gimmespec		Print the name of the specfile"
