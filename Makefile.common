@@ -189,7 +189,7 @@ ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pserie
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
 ## list all our bogus targets
-.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
+.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl tagurl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
 
 # The TARGETS define is meant for local module targets that should be
 # made in addition to the SOURCEFILES whenever needed
@@ -335,7 +335,7 @@ tag:    $(SPECFILE) $(COMMON_DIR)/branches
 	@echo "Tagged with: $(TAG)"
 	@echo
 
-tagbuild: tag  build clog commiturl
+tagbuild: tag  build clog commiturl tagurl
 	@rm -f clog
 
 force-tag: $(SPECFILE) $(COMMON_DIR)/branches
@@ -409,7 +409,18 @@ giturl:
 	 @echo '$(GIT_URL)'
 
 commiturl:
-	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://koozali.org|')/src/commit/$$(git rev-parse HEAD)
+	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|')/src/commit/$$(git rev-parse HEAD)
+
+tagurl:
+	@BASE_URL=$$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//'); \
+	TAGS=$$(git log --tags --simplify-by-decoration --pretty="format:%d" | grep -o 'tag: [^,)]*' | sed 's/tag: //' | head -n 2); \
+	TAG_RECENT=$$(echo "$$TAGS" | sed -n '1p'); \
+	TAG_ANCIEN=$$(echo "$$TAGS" | sed -n '2p'); \
+	if [ -z "$$TAG_ANCIEN" ] || [ -z "$$TAG_RECENT" ]; then \
+		echo "Erreur : Impossible de trouver au moins deux tags sur cette branche."; \
+	else \
+		echo "$$BASE_URL/compare/$$TAG_ANCIEN..$$TAG_RECENT"; \
+	fi
 
 # TODO rework or remove
 chain-build: build-check
@@ -560,8 +571,9 @@ help:
 	@echo "	clean			Remove srcs and srpm ($(NAME)-$(VERSION)-$(RELEASE).src.rpm)"
 	@echo "	patch SUFFIX=<suff>	Create and add a gendiff patch file"
 	@echo "	rediff SUFFIX=<suff>	Recreates a gendiff patch file, retaining comments"
-	@echo "	commiturl               displays https url to git last commit"
+	@echo "	commiturl               displays https url of last commit diff"
 	@echo "	giturl                  displays https url for last tag"
+	@echo "	tagurl                  displays https url of diff between last two tags"
 	@echo "	unused-patches		Print list of patches not referenced by name in specfile"
 	@echo "	unused-fedora-patches	Print Fedora patches not used by Patch and/or ApplyPatch directives"
 	@echo "	gimmespec		Print the name of the specfile"
