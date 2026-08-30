@@ -461,7 +461,7 @@ chain-build: build-check
 # TODO rework or remove
 # "make new | less" to see what has changed since the last tag was assigned
 new:
-	-@cvs diff -u -r$$(cvs log Makefile 2>/dev/null | awk '/^symbolic names:$$/ {getline; sub(/^[ \t]*/, "") ; sub (/:.*$$/, ""); print; exit 0}')
+	-@git diff $$(git describe --tags --abbrev=0) 2>/dev/null || git diff --staged
 
 # TODO rework or remove
 # mop up, printing out exactly what was mopped.
