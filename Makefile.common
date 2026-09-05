@@ -409,7 +409,7 @@ giturl:
 	 @echo '$(GIT_URL)'
 
 commiturl:
-	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|')/src/commit/$$(git rev-parse HEAD)
+	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//' )/commit/$$(git rev-parse HEAD)
 
 tagurl:
 	@BASE_URL=$$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//'); \
