@@ -13,6 +13,28 @@ define find-common-dir
 for d in common ../common ../../common ; do if [ -f $$d/Makefile.common ] ; then echo "$$d"; break ; fi ; done
 endef
 COMMON_DIR := $(shell $(find-common-dir))
+# check if Makefile.common is up-to-date
+$(COMMON_DIR)/Makefile.common: common-sync-check
+    @:
+
+# if not up-to-date synchronise with git and reload
+.PHONY: common-sync-check
+common-sync-check:
+	@if [ -d "$(COMMON_DIR)/.git" ]; then \
+	    if cd $(COMMON_DIR) && git status --porcelain 2>/dev/null | grep -q . ; then \
+		echo "WARNING: $(COMMON_DIR) has unstaged or uncommitted changes!" >&2 ; \
+		echo "         Skipping automatic update to preserve your local modifications." >&2 ; \
+	    else \
+		cd $(COMMON_DIR) && git fetch -q origin 2>/dev/null ; \
+		LOCAL_HASH=$$(cd $(COMMON_DIR) && git rev-parse HEAD 2>/dev/null) ; \
+		REMOTE_HASH=$$(cd $(COMMON_DIR) && git rev-parse @{u} 2>/dev/null) ; \
+		if [ "$$LOCAL_HASH" != "$$REMOTE_HASH" ]; then \
+		    echo "NOTICE: $(COMMON_DIR) is outdated! Pulling down current rules..." >&2 ; \
+		    cd $(COMMON_DIR) && git pull --rebase -q ; \
+		    echo "Successfully updated $(COMMON_DIR). Reloading Makefile..." >&2 ; \
+		fi \
+	    fi \
+	fi
 
 # Branch and disttag definitions
 # These need to happen second.
@@ -20,22 +42,82 @@ ifndef HEAD_BRANCH
 HEAD_BRANCH := devel
 endif
 BASEDIR := $(shell basename `pwd`)
-# get and store the GIT branch for later use
+
+# Capture any of your exact or wildcard build targets passed to the command line
+ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% mockbuild tagbuild switch,$(MAKECMDGOALS))
+
+# Automatically inject the workspace status check and target validation steps
+$(eval $(if $(ACTIVE_BUILD_GOALS), \
+    $(foreach t,$(ACTIVE_BUILD_GOALS), \
+        $(t): repo-clean-check target-check branch-check \
+    ) \
+))
+
+# get and store the current GIT information for later use
 # using git
 #GIT_BRANCH = $(shell git branch --list | cut -d' ' -f2)
 # without git installed eg in chroot
-GIT_BRANCH = $(shell grep 'branch' .git/config | cut -d'"' -f2)
-
-# Will allow build from individual branch if the HEAD specifies a TARGET in the common/branches file (e.g. sme11 or contribs11)
-# Defaults to version contained in file current if HEAD=master (with prefix of either sme or contribs based on GITEA organisation)
-CURRENT = $(shell cat $(COMMON_DIR)/current)
+GIT_BRANCH = $(shell cat .git/HEAD 2>/dev/null | sed 's|.*/||')
+GIT_BRANCHES := $(shell git branch -a | sed -E 's|[* ]||g; s|remotes/origin/||g; s|HEAD->origin/master||g; /^$$/d' | sort -u 2>/dev/null)
+#GIT_LOCAL_BRANCHES := $(shell git branch --list | sed 's/[* ]//g' 2>/dev/null)
 PREF = $(shell [ `grep url -r .git/config | cut -d/ -f4` == "smecontribs" ] && echo 'contribs' || echo 'sme')
-ifdef TARGET
-BRANCH = $(word 1, $(TARGET))
+CURRENT = $(shell cat $(COMMON_DIR)/current)
+# using git
+COMMIT_URL := $(shell git config --get remote.origin.url 2>/dev/null | \
+    sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|')/src/commit/$(shell git rev-parse HEAD 2>/dev/null)
+
+# If a 2nd parameter passed, assume it is a TARGET
+# Will allow build from individual branch if the HEAD specifies a TARGET in the common/branches file (e.g. sme11 or contribs11)
+# Defaults to versions contained in file common/current if HEAD=master (with prefix of either sme or contribs based on GITEA organisation)
+# Check if GIT_BRANCH starts with "sme" or "contribs" and issue a WARNING
+POSSIBLE_TARGET := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifeq ($(firstword $(MAKECMDGOALS)),switch)
+  NEW_BRANCH := $(POSSIBLE_TARGET)
+  ifneq ($(strip $(NEW_BRANCH))),)
+    $(NEW_BRANCH):
+    @:
+  endif
+  ifeq ($(filter $(NEW_BRANCH),$(GIT_BRANCHES)),)
+    $(error Error: Branch '$(NEW_BRANCH)' does not exist. Run 'git branch --list' to see valid branches.)
+  endif
+  TARGET = $(addprefix $(PREF),$(CURRENT))
 else
-BRANCH = $(shell [ $(GIT_BRANCH) == "master" ] && echo $(PREF)$(CURRENT) || echo $(GIT_BRANCH))
+  ifneq ($(filter sme% contribs%,$(POSSIBLE_TARGET)),)
+    TARGET = $(POSSIBLE_TARGET)
+  endif
+  ifneq ($(strip $(TARGET)),)
+    ifneq ($(filter sme% contribs%,$(GIT_BRANCH)),)
+      $(info WARNING: you are overiding the Branch default Target of $(GIT_BRANCH) with $(TARGET)) 
+    endif
+  else
+    ifeq ($(GIT_BRANCH),master)
+      SME_BRANCHES := $(shell git branch -a --list 'sme*' 'contribs*' | sed -E 's|[* ]||g; s|remotes/origin/||g; s|HEAD->origin/master||g; /^$$/d' | sort -u 2>/dev/null)
+      ifneq ($(strip $(SME_BRANCHES)),)
+        TARGET = $(addprefix $(PREF),$(word 1,$(CURRENT)))
+        $(info WARNING: you have sme* or contribs* git branches, so defaulting to primary current target ONLY $(TARGET))
+      else
+        TARGET = $(addprefix $(PREF),$(CURRENT))
+      endif
+    else
+      TARGET = $(GIT_BRANCH)
+    endif
+  endif
+endif
+# check list of TARGETs against common/branches to check that they exist
+VALID_TARGETS := $(shell cut -d: -f1 $(COMMON_DIR)/branches 2>/dev/null)
+INVALID_TARGETS := $(filter-out $(VALID_TARGETS),$(TARGET))
+ifneq ($(firstword $(MAKECMDGOALS)),switch)
+# Check if TARGET is completely empty
+ifeq ($(strip $(TARGET)),)
+    $(error No valid TARGET for $(BRANCH) found)
+endif
+# Check if there are any invalid targets in the list
+ifneq ($(strip $(INVALID_TARGETS)),)
+    $(error Unknown TARGET(s): $(INVALID_TARGETS))
+endif
 endif
 
+BRANCH = $(word 1, $(TARGET))
 # check BRANCH against common/branches to ensure that it exists
 branch-check:
 	@if ! grep -q "$(BRANCH)" $(COMMON_DIR)/branches; then echo "Unknown BRANCH '$(BRANCH)'" ; exit 1; fi
@@ -43,7 +125,7 @@ branch-check:
 $(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): branch-check)))
 
 # grab all the requierd info from common/branches for this BRANCH
-BRANCHINFO = $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
+BRANCHINFO := $(shell grep ^$(BRANCH): $(COMMON_DIR)/branches | cut -d: --output-delimiter=" " -f2-)
 DIST = $(word 2, $(BRANCHINFO))
 DISTVAR = $(word 3, $(BRANCHINFO))
 DISTVAL = $(word 4, $(BRANCHINFO))
@@ -59,16 +141,6 @@ LOCALARCH := $(if $(shell grep -i '^BuildArch:.*noarch' $(SPECFILE)), noarch, $(
 ifndef TARGET
 TARGET = $(word 1, $(BRANCHINFO))
 endif
-
-# check list of TARGETs against common/branches to check that they are correct
-target-check:
-	@if [[ -z "$(TARGET)" ]]; then echo "No valid TARGET for $(BRANCH) found"; exit 1; fi 
-	@for t in $(TARGET); do \
-		if ! grep -q "^$$t:" $(COMMON_DIR)/branches; then \
-			echo "Unknown TARGET '$$t'" ; \
-			exit 1; \
-		fi; \
-	done
 
 $(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): target-check)))
 
@@ -168,9 +240,12 @@ endif
 
 # CVS-safe version/release -- a package name like 4Suite screws things
 # up, so we have to remove the leaving digits from the name
-TAG_NAME    := $(shell echo $(NAME)    | sed -e s/\\\./_/g -e s/^[0-9]\\\+//g)
-TAG_VERSION := $(shell echo $(VERSION) | sed s/\\\./_/g)
-TAG_RELEASE := $(shell echo $(RELEASE) | sed s/\\\./_/g)
+#TAG_NAME    := $(shell echo $(NAME)    | sed -e s/\\\./_/g -e s/^[0-9]\\\+//g)
+#TAG_VERSION := $(shell echo $(VERSION) | sed s/\\\./_/g)
+#TAG_RELEASE := $(shell echo $(RELEASE) | sed s/\\\./_/g)
+TAG_NAME    := $(NAME)
+TAG_VERSION := $(VERSION)
+TAG_RELEASE := $(RELEASE)
 
 # tag to export, defaulting to current tag in the spec file
 #TAG?=$(TAG_NAME)-$(TAG_VERSION)-$(TAG_RELEASE)
@@ -183,13 +258,13 @@ $(shell cat sources 2>/dev/null | while read m f ; do if test "$$f" = "$@" ; the
 endef
 
 # list the possible targets for valid arches
-ARCHES = noarch i386 i586 i686 x86_64 aarch64 # ia64 s390 s390x ppc ppc64 pseries ppc64pseries iseries ppc64iseries athlon alpha alphaev6 sparc sparc64 sparcv9 sparcv9v sparc64v i164 mac sh mips geode
+ARCHES = noarch i686 x86_64 aarch64 # i386 i586 ia64 s390 s390x ppc ppc64 pseries ppc64pseries iseries ppc64iseries athlon alpha alphaev6 sparc sparc64 sparcv9 sparcv9v sparc64v i164 mac sh mips geode
 
 # for the modules that do different "make prep" depending on what arch we build for
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
 ## list all our bogus targets
-.PHONY :: $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl tagurl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build scratch-build-% showinfo
+.PHONY : $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl tagurl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build showinfo switch_branch scratch-build-%
 
 # The TARGETS define is meant for local module targets that should be
 # made in addition to the SOURCEFILES whenever needed
@@ -203,6 +278,18 @@ sources:  $(TARGETS)
 ifndef BUILDARCH
 BUILDARCH := $(shell rpm --eval "%{_arch}")
 endif
+
+# Safety check target
+.PHONY: repo-clean-check
+repo-clean-check:
+	@if git status --porcelain 2>/dev/null | grep -q . ; then \
+	    echo "ERROR: Your git repository has uncommitted changes or untracked files!" >&2 ; \
+	    echo "Please commit, stash, or delete them before running a build or switch." >&2 ; \
+	    echo "" >&2 ; \
+	    git status -s >&2 ; \
+	    echo "" >&2 ; \
+	    exit 1 ; \
+	fi
 
 # test build in mock
 mockbuild : srpm
@@ -320,21 +407,47 @@ showinfo:
 	$(info $$PREF is ${PREF})
 	$(info $$GIT_URL is ${GIT_URL}) 
 	$(info $$GIT_BRANCH is ${GIT_BRANCH})
+	$(info $$GIT_BRANCHES are ${GIT_BRANCHES})
 	$(info $$BRANCH is ${BRANCH}) 
+	$(info $$BRANCH_INFO is ${BRANCHINFO})
 	$(info $$TARGET is ${TARGET})
 	$(info $$VER_REL is ${VER_REL})
-	$(info $$version is ${VERSION})
-	$(info COMMIT URL is $(shell $(MAKE) --no-print-directory commiturl))
+	$(info $$NAME is ${NAME})
+	$(info $$VERSION is ${VERSION})
+	$(info $$RELEASE is ${RELEASE})
+	$(info COMMIT is $(notdir $(COMMIT_URL)))
+#	$(info COMMIT URL is $(shell $(MAKE) --no-print-directory commiturl))
 	@:
 
 # If you build a new version into the tree, first do "make tag",
 # then "make srpm", then build the package.  
-tag:    $(SPECFILE) $(COMMON_DIR)/branches
-	git tag $(TAG_OPTS) -a $(TAG) -m $(TAG)
+TAG_ACTIONS := $(addprefix run-tag-,$(TARGET))
+tag: $(SPECFILE) $(COMMON_DIR)/branches $(TAG_ACTIONS)
 	git push --tag
-	@echo "Tagged with: $(TAG)"
-	@echo
 
+.PHONY: run-tag-%
+run-tag-%:
+	@elver=$$(awk -F: -v target="$*" '$$1 == target { split($$0, fields, ":"); print fields[5] }' $(COMMON_DIR)/branches) ; \
+	if [ -z "$$elver" ]; then echo "Unknown TARGET '$*'"; exit 1; fi ; \
+	expanded_tag=$$(echo "$(VERSION)-$(RELEASE)" | sed "s/\.el./.el$$elver/") ; \
+	\
+	# Check if the tag already exists in your local Git repository \
+	if git rev-parse "refs/tags/$$expanded_tag" >/dev/null 2>&1; then \
+	    echo "ERROR: The tag '$$expanded_tag' already exists locally!" >&2 ; \
+	    echo "- have you updated/committed the spec file?" >&2 ; \
+	    exit 1; \
+	fi ; \
+	\
+	# Check if the tag already exists on the remote Git server (origin) \
+	if git ls-remote --tags origin "refs/tags/$$expanded_tag" 2>/dev/null | grep -q . ; then \
+	    echo "ERROR: The tag '$$expanded_tag' already exists on the remote server (origin)!" >&2 ; \
+	    echo "- have you updated/committed the spec file?" >&2 ; \
+	    exit 1; \
+	fi ; \
+	\	
+	git tag $(TAG_OPTS) -a $$expanded_tag -m $$expanded_tag ; \
+	echo "Successfully tagged $* with: $$expanded_tag"
+    
 tagbuild: tag  build clog commiturl tagurl
 	@rm -f clog
 
@@ -350,13 +463,23 @@ build-check: $(SPECFILE)
 	@git tag 2>/dev/null | grep -q $(TAG); ret=$$? ;\
 	if [ $$ret -ne 0 ]; then echo "$(SPECFILE) not tagged with tag $(TAG)"; exit 1;  fi
 
-koji: build-check $(COMMON_DIR)/branches
-	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
-	@for t in $(TARGET); do \
-	    $(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$$t" '$(GIT_URL)'; \
-	done
+KOJI_ACTIONS := $(addprefix koji-build-,$(TARGET))
+koji: build-check $(COMMON_DIR)/branches $(KOJI_ACTIONS)
 
-#ifneq (, $(filter devel, $(BRANCH)))
+.PHONY: koji-tool-check
+koji-tool-check:
+	@if [ ! -x "$(BUILD_CLIENT)" ]; then \
+	    echo "Must have koji installed - see https://fedoraproject.org/wiki/BuildSystemClientSetup"; \
+	    exit 1; \
+	fi
+
+.PHONY: koji-build-%
+koji-build-%: koji-tool-check
+	@elver=$$(awk -F: -v target="$*" '$$1 == target { print $$5 }' $(COMMON_DIR)/branches) ; \
+	if [ -z "$$elver" ]; then echo "Unknown TARGET '$*'"; exit 1; fi ; \
+	expanded_url=$$(echo "$(GIT_URL)" | sed "s/\.el./.el$$elver/") ; \
+	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$*" "$$expanded_url"
+
 build: koji
 #else
 #build: plague
@@ -409,7 +532,8 @@ giturl:
 	 @echo '$(GIT_URL)'
 
 commiturl:
-	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//' )/commit/$$(git rev-parse HEAD)
+	@echo '$(COMMIT_URL)'
+#	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|')/src/commit/$$(git rev-parse HEAD)
 
 tagurl:
 	@BASE_URL=$$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//'); \
@@ -458,7 +582,19 @@ chain-build: build-check
 		$(eval CHAIN_TARGET := $(firstword $(TARGET))) ; \
         $(BUILD_CLIENT) chain-build $(BUILD_FLAGS) $(CHAIN_TARGET) $$urls
 
-# TODO rework or remove
+switch_branch:
+	@git switch $(BRANCH)
+
+.PHONY: switch
+switch:
+ifeq ($(strip $(NEW_BRANCH)),)
+	$(error Error: Please specify a git branch. Example: make switch sme12)
+endif
+	@git switch $(NEW_BRANCH)
+# Turn the branch name into a dummy target so Make doesn't complain
+%:
+	@:
+	
 # "make new | less" to see what has changed since the last tag was assigned
 new:
 	-@git diff $$(git describe --tags --abbrev=0) 2>/dev/null || git diff --staged
@@ -516,7 +652,9 @@ rediff:
 	@(cd $(RPM_BUILD_DIR)/.. && gendiff $(NAME)-$(VERSION) .$(SUFFIX) | $(FILTERDIFF)) >> $(PATCHFILE) || true
 
 clog: $(SPECFILE)
-	@sed -n '/^%changelog/,/^$$/{/^%/d;/^$$/d;s/%%/%/g;p}' $(SPECFILE) | tee $@
+	@sed -n '/^%changelog/,/^$$/p' $(SPECFILE) | sed '1d;/^$$/d;s/%%/%/g' | tee clog
+	@cat clog
+
 
 commit: clog
 	@git commit -F clog
@@ -535,6 +673,7 @@ help:
 	@echo "Available targets are:"
 	@echo "	help			Show this text"
 	@echo "	sources			Download/build source files"
+	@echo " switch_branch		Switch to git branch <TARGET>"
 	@echo "	<arch>			Local test rpmbuild binary"
 	@echo "	local			Local test rpmbuild binary"
 	@echo "	prep			Local test rpmbuild prep"
