@@ -498,16 +498,18 @@ koji-build-%: koji-tool-check
 	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$*" "$$expanded_url"
 
 ## build: Request a build on koji for specified TARGET
-##     Usage: make build <target> or make build TARGET=<target> or make build
-##     Example: make build sme12
-##     will trigger a build on koji for all arches of $(NAME)
+##     Usage: make build or make build <target> or make build TARGET=<target>
+##     Example: make build
+##     will trigger a build on koji for all arches with a TARGET=<default target> - see make help for more info
+##     Example: make build sme12 or make build TARGET=sme12
+##     will trigger a build on koji for all arches with a TARGET=sme12
 build: koji
 #else
 #build: plague
 #endif
 
 # scratch-build will only use the first target and ignore all others (if it gets this far)
-## scratch-build: Request a scratch-build on koji for the specified TARGET $(firstword $(TARGET))
+## scratch-build: Request a scratch-build on koji for the specifief TARGET
 ##     Usage:   make scratch-build <target>
 ##     Example: make scratch-build sme12
 ##     will trigger a scratch build on koji using the sme12-build for all arches 
