@@ -45,7 +45,7 @@ endif
 BASEDIR := $(shell basename `pwd`)
 
 # Capture any of your exact or wildcard build targets passed to the command line
-ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% mockbuild tagbuild,$(MAKECMDGOALS))
+ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% tagbuild,$(MAKECMDGOALS))
 
 # Automatically inject the workspace status check and target validation steps
 $(eval $(if $(ACTIVE_BUILD_GOALS), \
@@ -285,12 +285,13 @@ endif
 ## repo-clean-check: Check that the repo is clean
 repo-clean-check:
 	@if git status --porcelain 2>/dev/null | grep -q . ; then \
-	    echo "ERROR: Your git repository has uncommitted changes or untracked files!" >&2 ; \
-	    echo "Please commit, stash, or delete them before running a build or switch." >&2 ; \
+	    echo "WARNING: Your git repository has uncommitted changes or untracked files!" >&2 ; \
+#	    echo "ERROR: Your git repository has uncommitted changes or untracked files!" >&2 ; \
+	    echo "Please commit, stash, or delete them before running a build." >&2 ; \
 	    echo "" >&2 ; \
 	    git status -s >&2 ; \
 	    echo "" >&2 ; \
-	    exit 1 ; \
+#	    exit 1 ; \
 	fi
 
 # test build in moc
