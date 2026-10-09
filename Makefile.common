@@ -100,7 +100,11 @@ else
         TARGET = $(addprefix $(PREF),$(CURRENT))
       endif
     else
-      TARGET = $(GIT_BRANCH)
+      ifneq ($(filter sme% contribs%,$(GIT_BRANCH)),)
+        TARGET = $(GIT_BRANCH)
+      else
+        TARGET = $(addprefix $(PREF),$(CURRENT))
+      endif
     endif
   endif
 endif
@@ -494,9 +498,9 @@ koji-build-%: koji-tool-check
 	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$*" "$$expanded_url"
 
 ## build: Request a build on koji for specified TARGET
-##     Usage: make build <target>
+##     Usage: make build <target> or make build TARGET=<target> or make build
 ##     Example: make build sme12
-##     will trigger a build on koji of this pkg for all arches
+##     will trigger a build on koji for all arches of $(NAME)
 build: koji
 #else
 #build: plague
