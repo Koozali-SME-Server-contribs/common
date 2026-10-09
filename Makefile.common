@@ -7,6 +7,7 @@
 #
 # $Id: Makefile.common,v 1.14 2022/06/08 18:44:49 jpp Exp $
 
+.DEFAULT_GOAL := help
 # Define the common dir.
 # This needs to happen first.
 define find-common-dir
@@ -44,7 +45,7 @@ endif
 BASEDIR := $(shell basename `pwd`)
 
 # Capture any of your exact or wildcard build targets passed to the command line
-ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% mockbuild tagbuild switch,$(MAKECMDGOALS))
+ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% mockbuild tagbuild,$(MAKECMDGOALS))
 
 # Automatically inject the workspace status check and target validation steps
 $(eval $(if $(ACTIVE_BUILD_GOALS), \
@@ -144,23 +145,23 @@ endif
 
 $(eval $(if $(filter %build,$(MAKECMDGOALS)), $(foreach t,$(filter %build,$(MAKECMDGOALS)), $(t): target-check)))
 
-## a base directory where we'll put as much temporary working stuff as we can
+# a base directory where we'll put as much temporary working stuff as we can
 ifndef WORKDIR
 WORKDIR := $(shell pwd)
 endif
-## of course all this can also be overridden in your RPM macros file,
-## but this way you can separate your normal RPM setup from your CVS
-## setup. Override RPM_WITH_DIRS in ~/.cvspkgsrc to avoid the usage of
-## these variables.
+# of course all this can also be overridden in your RPM macros file,
+# but this way you can separate your normal RPM setup from your CVS
+# setup. Override RPM_WITH_DIRS in ~/.cvspkgsrc to avoid the usage of
+# these variables.
 SRCRPMDIR ?= $(WORKDIR)
 BUILDDIR ?= $(WORKDIR)
 RPMDIR ?= $(WORKDIR)
 MOCKDIR ?= $(WORKDIR)
 MOCKCFG ?= smeserver-$(SMEVAL)-$(BUILDARCH)-base
-## SOURCEDIR is special; it has to match the CVS checkout directory, 
-## because the CVS checkout directory contains the patch files. So it basically 
-## can't be overridden without breaking things. But we leave it a variable
-## for consistency, and in hopes of convincing it to work sometime.
+# SOURCEDIR is special; it has to match the CVS checkout directory, 
+# because the CVS checkout directory contains the patch files. So it basically 
+# can't be overridden without breaking things. But we leave it a variable
+# for consistency, and in hopes of convincing it to work sometime.
 ifndef SOURCEDIR
 SOURCEDIR := $(shell pwd)
 endif
@@ -263,7 +264,7 @@ ARCHES = noarch i686 x86_64 aarch64 # i386 i586 ia64 s390 s390x ppc ppc64 pserie
 # for the modules that do different "make prep" depending on what arch we build for
 PREP_ARCHES	= $(addprefix prep-,$(ARCHES))
 
-## list all our bogus targets
+# list all our bogus targets
 .PHONY : $(ARCHES) $(ARCHIVEFILE) clog commit commiturl giturl tagurl sources uploadsource upload check build build-check branch-check target-check plague koji build chain-build test-srpm srpm tag tagbuild force-tag verrel new clean patch prep compile install install-short compile-short FORCE local scratch-build showinfo switch_branch scratch-build-%
 
 # The TARGETS define is meant for local module targets that should be
@@ -281,6 +282,7 @@ endif
 
 # Safety check target
 .PHONY: repo-clean-check
+## repo-clean-check: Check that the repo is clean
 repo-clean-check:
 	@if git status --porcelain 2>/dev/null | grep -q . ; then \
 	    echo "ERROR: Your git repository has uncommitted changes or untracked files!" >&2 ; \
@@ -291,11 +293,13 @@ repo-clean-check:
 	    exit 1 ; \
 	fi
 
-# test build in mock
+# test build in moc
+## mockbuild: Local test build using mock (make mockbuild)k
 mockbuild : srpm
 	mock $(MOCKARGS) -r $(MOCKCFG) --resultdir=$(MOCKDIR)/$(TAG) rebuild $(SRCRPMDIR)/$(NAME)-$(VERSION)-$(RELEASE).src.rpm
 
 # check the build with rpmlint
+## lint: Check the build with rpmlint
 lint:
 	@test -e $(NAME)-$(VERSION)-$(RELEASE).src.rpm || (echo "run 'make local' first" ; exit 1 )
 	rpmlint $(NAME)-$(VERSION)-$(RELEASE).src.rpm $(LOCALARCH)/*-$(VERSION)-$(RELEASE).$(LOCALARCH).rpm
@@ -307,10 +311,10 @@ $(ARCHES) : sources $(TARGETS)
 # empty target to force checking 
 FORCE:
 
-# build whatever's appropriate for the local architecture
+## local: build whatever's appropriate for the local architecture
 local: $(LOCALARCH)
 
-# attempt to apply all the patches, optionally only for a particular arch
+## prep: attempt to apply all the patches, optionally only for a particular arch
 ifdef PREPARCH
 prep: sources $(TARGETS)
 	$(RPM_WITH_DIRS) --nodeps -bp --target $(PREPARCH) $(SPECFILE)
@@ -319,19 +323,23 @@ prep: sources $(TARGETS)
 	$(RPM_WITH_DIRS) --nodeps -bp $(SPECFILE)
 endif
 
-# this allows for make prep-i686, make prep-ppc64, etc
+## prep-%: this allows for make prep-i686, make prep-ppc64, etc
 prep-% : Makefile
 	$(MAKE) prep PREPARCH=$*
 
+## compile: Local test - rpmbuild compile
 compile: sources $(TARGETS)
 	$(RPM_WITH_DIRS) -bc $(SPECFILE)
 
+## install: local test - rpmbuild install
 install: sources $(TARGETS)
 	$(RPM_WITH_DIRS) -bi $(SPECFILE)
 
+## compile-short: Local test - rpmbuild short-circuit compile 
 compile-short: sources $(TARGETS)
 	$(RPM_WITH_DIRS) --nodeps --short-circuit -bc $(SPECFILE)
 
+## install-short: Local test - rpmbiuild short-circuit install
 install-short: sources $(TARGETS)
 	$(RPM_WITH_DIRS) --nodeps --short-circuit -bi $(SPECFILE)
 
@@ -347,7 +355,7 @@ GIT_ORG := $(shell basename `dirname $(RAW_URL)`)
 # while git.koozali.org, for ssh, points to a different ip 
 GIT_URL     := git+https://src.koozali.org/$(GIT_ORG)/$(GIT_REPOSITORY)\#$(TAG)
 
-## build a test-srpm and see if it will -bp on all arches 
+## check: build a test-srpm and see if it will -bp on all arches 
 # XXX: I am not sure exactly what this is supposed to really do, since the
 # query format returns (none) most of the time, and that is not
 # handled --gafton
@@ -363,7 +371,7 @@ check: test-srpm
 	    fi; \
 	done;
 
-## use this to build an srpm locally
+## srpm: Use this to build an srpm locally
 ifneq (, $(filter contribs7 contribs8 contribs9, $(BRANCH)))
 srpm: sources $(TARGETS)
 	$(RPM_WITH_DIRS) $(DIST_DEFINES) --define _source_filedigest_algorithm=md5 --nodeps -bs $(SPECFILE)
@@ -397,13 +405,15 @@ else
 	$(info keeping ${ARCHIVEFILE} archive if exist (Builder mock))
 endif
 
+## test-srpm: same as srpm
 test-srpm: srpm
 
+## verrel: Display <name>-<version>-<release> of this pkg
 verrel:
 	@echo $(NAME)-$(VERSION)-$(RELEASE)
 
+# showinfo: Display values of some of the key calculated variables
 showinfo:
-# show values of some of the key calculated variables
 	$(info $$PREF is ${PREF})
 	$(info $$GIT_URL is ${GIT_URL}) 
 	$(info $$GIT_BRANCH is ${GIT_BRANCH})
@@ -422,6 +432,7 @@ showinfo:
 # If you build a new version into the tree, first do "make tag",
 # then "make srpm", then build the package.  
 TAG_ACTIONS := $(addprefix run-tag-,$(TARGET))
+## tag: create a new git tag from your specfile and push to gitea
 tag: $(SPECFILE) $(COMMON_DIR)/branches $(TAG_ACTIONS)
 	git push --tag
 
@@ -447,7 +458,8 @@ run-tag-%:
 	\	
 	git tag $(TAG_OPTS) -a $$expanded_tag -m $$expanded_tag ; \
 	echo "Successfully tagged $* with: $$expanded_tag"
-    
+
+## tagbuild: Will run tag, build, clog, tagurl
 tagbuild: tag  build clog commiturl tagurl
 	@rm -f clog
 
@@ -480,12 +492,20 @@ koji-build-%: koji-tool-check
 	expanded_url=$$(echo "$(GIT_URL)" | sed "s/\.el./.el$$elver/") ; \
 	$(BUILD_CLIENT) $(SECONDARY_CONFIG) build --nowait $(BUILD_FLAGS) "$*" "$$expanded_url"
 
+## build: Request a build on koji for specified TARGET
+##     Usage: make build <target>
+##     Example: make build sme12
+##     will trigger a build on koji of this pkg for all arches
 build: koji
 #else
 #build: plague
 #endif
 
 # scratch-build will only use the first target and ignore all others (if it gets this far)
+## scratch-build: Request a scratch-build on koji for the specified TARGET $(firstword $(TARGET))
+##     Usage:   make scratch-build <target>
+##     Example: make scratch-build sme12
+##     will trigger a scratch build on koji using the sme12-build for all arches 
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
 	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
@@ -493,6 +513,10 @@ scratch-build: build-check
 
 # TODO Target checking is not performed for scratch-build-<arch>
 # scratch-build will only use the first target and ignore all others (if it gets this far)
+## scratch-build-%: Request a scratch-build on koji for the specified TARGET and arch
+##     Usage:   make scratch-build-<arch> <target>
+##     Example: make scratch-build-aarm64 sme12
+##     will trigger a scratch build on koji using the sme12-build but only for aarch64 
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
 	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
@@ -528,13 +552,15 @@ ifneq (, $(filter contribs7 contribs8 contribs9, $(BRANCH)))
 update: bodhi
 endif
 
+## giturl: Display the git url
 giturl:
 	 @echo '$(GIT_URL)'
 
+## commiturl: Display the url for the current commit
 commiturl:
 	@echo '$(COMMIT_URL)'
-#	@echo $$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|')/src/commit/$$(git rev-parse HEAD)
 
+## tagurl: Display the url for the current git tag
 tagurl:
 	@BASE_URL=$$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//'); \
 	TAGS=$$(git log --tags --simplify-by-decoration --pretty="format:%d" | grep -o 'tag: [^,)]*' | sed 's/tag: //' | head -n 2); \
@@ -547,6 +573,15 @@ tagurl:
 	fi
 
 # TODO rework or remove
+## chain-build: Build multiple dependent packages in a sequential Koji chain
+##     Usage:   make chain-build CHAIN="<pkg1> <pkg2> ..." [ TARGET=<target> ]
+##     Example: make chain-build CHAIN="libwidget libgizmo" TARGET=sme12
+##     The current package is added to the end of the CHAIN list.
+##     Colons (:) can be used in the CHAIN parameter to define dependency groups.
+##     Packages in a single group will be built in parallel, and all packages
+##     in a group must build successfully and populate the repository before
+##     the next group will begin building.
+##     If no groups are defined, packages will be built sequentially.
 chain-build: build-check
 	@if [ -z "$(CHAIN)" ]; then \
                 echo "Missing CHAIN variable, please specify the order of packages to" ; \
@@ -570,7 +605,7 @@ chain-build: build-check
                 rm -rf .tmp-$$$$ ; \
                 mkdir -p .tmp-$$$$ ; \
                 pushd .tmp-$$$$ > /dev/null ; \
-                cvs -f -Q -z 3 -d $(CVS_ROOT) co $$component ; \
+                git clone -q --depth 1 git+https://src.koozali.org/$(GIT_ORG)/$$component.git $$component ; \
                 urls="$$urls `make -s -C $$component/$$subdir giturl`" ; \
                 popd > /dev/null ; \
                 rm -rf .tmp-$$$$ ; \
@@ -582,10 +617,9 @@ chain-build: build-check
 		$(eval CHAIN_TARGET := $(firstword $(TARGET))) ; \
         $(BUILD_CLIENT) chain-build $(BUILD_FLAGS) $(CHAIN_TARGET) $$urls
 
-switch_branch:
-	@git switch $(BRANCH)
-
 .PHONY: switch
+## switch: Switch git branch
+##     Usage: make switch <git branch>
 switch:
 ifeq ($(strip $(NEW_BRANCH)),)
 	$(error Error: Please specify a git branch. Example: make switch sme12)
@@ -595,12 +629,13 @@ endif
 %:
 	@:
 	
-# "make new | less" to see what has changed since the last tag was assigned
+## new: "make new | less" to see what has changed since the last tag was assigned
 new:
 	-@git diff $$(git describe --tags --abbrev=0) 2>/dev/null || git diff --staged
 
 # TODO rework or remove
 # mop up, printing out exactly what was mopped.
+## clean: Remove sources and srpm
 clean :
 	@echo "Running the %clean script of the rpmbuild..."
 	-@$(RPM_WITH_DIRS) --clean --nodeps $(SPECFILE)
@@ -634,6 +669,8 @@ else
 PATCHFILE := $(NAME)-$(VERSION)-$(SUFFIX).patch
 endif
 
+## patch: Create and add a gendiff patch file
+##     Usage: patch SUFFIX=<suffix>
 patch:
 	@if test -z "$(SUFFIX)"; then echo "Must specify SUFFIX=whatever" ; exit 1; fi
 	(cd $(RPM_BUILD_DIR)/.. && gendiff $(NAME)-$(VERSION) .$(SUFFIX) | $(FILTERDIFF)) > $(PATCHFILE) || true
@@ -644,6 +681,8 @@ patch:
 # Recreates the patch file of specified suffix from the current working sources
 # but keeping any comments at the top of file intact, and backing up the old copy
 # with a '~' suffix.
+## rediff: Recreates a gendiff patch file, retaining comments
+##     Usage: rediff SUFFIX=<suffix>
 rediff:
 	@if test -z "$(SUFFIX)"; then echo "Must specify SUFFIX=whatever" ; exit 1; fi
 	@if ! test -f "$(PATCHFILE)"; then echo "$(PATCHFILE) not found"; exit 1; fi
@@ -651,76 +690,70 @@ rediff:
 	@sed '/^--- /,$$d' < $(PATCHFILE)\~ > $(PATCHFILE)
 	@(cd $(RPM_BUILD_DIR)/.. && gendiff $(NAME)-$(VERSION) .$(SUFFIX) | $(FILTERDIFF)) >> $(PATCHFILE) || true
 
+## clog: Make a clog file containing latest changelog entry
 clog: $(SPECFILE)
 	@sed -n '/^%changelog/,/^$$/p' $(SPECFILE) | sed '1d;/^$$/d;s/%%/%/g' | tee clog
 	@cat clog
 
-
+## commit: Commit and push to GIT using the clog file as the log message
 commit: clog
 	@git commit -F clog
 	@rm -f clog
 	@git push
 
+## commitonly: Commit locally to GIT using the clog file as the log message
 commitonly: clog
 	@git commit -F clog
 	@rm -f clog
 
+## push: Push to GIT local commits (e.g. after git commit or make commitonly)
 push:
 	@git push
 
+.PHONY: help
+## help: Show this help message (also just make)
 help:
-	@echo "Usage: make <target>"
-	@echo "Available targets are:"
-	@echo "	help			Show this text"
-	@echo "	sources			Download/build source files"
-	@echo " switch_branch		Switch to git branch <TARGET>"
-	@echo "	<arch>			Local test rpmbuild binary"
-	@echo "	local			Local test rpmbuild binary"
-	@echo "	prep			Local test rpmbuild prep"
-	@echo "	compile			Local test rpmbuild compile"
-	@echo "	install			Local test rpmbuild install"
-	@echo "	compile-short		Local test rpmbuild short-circuit compile"
-	@echo "	install-short		Local test rpmbuild short-circuit install"
-	@echo "	lint			Run rpmlint against local build output"
-	@echo "	check			Check test srpm preps on all archs"
-	@echo "	srpm			Create a srpm"
-	@echo "	tag			Tag sources as \"$(TAG)\""
-	@echo "	tagbuild		Tag sources as \"$(TAG)\" and then build"
-	@echo "	build			Request build of \"$(TAG)\" for $(TARGET)"
-	@echo "	chain-build		Build current package in order with other packages"
-	@echo "		example:  make chain-build CHAIN='libwidget libgizmo'"
-	@echo "		The current package is added to the end of the CHAIN list."
-	@echo "		Colons (:) can be used in the CHAIN parameter to define dependency groups."
-	@echo "		Packages in a single group will be built in parallel, and all packages"
-	@echo "		  in a group must build successfully and populate the repository before"
-	@echo "		  the next group will begin building."
-	@echo "		If no groups are defined, packages will be built sequentially."
-	@echo "	scratch-build		Request scratch build of \"$(TAG)\" for $(TARGET)"
-	@echo "	scratch-build-<archs>	Request scratch build of \"$(TAG)\" for $(TARGET) and archs <archs>"
-	@echo "		examples:  make scratch-build-i386,ppc64"
-	@echo "			   make scratch-build-x86_64"
-	@echo "	mockbuild		Local test build using mock"
-	@echo "	verrel			Echo \"$(NAME)-$(VERSION)-$(RELEASE)\""
-	@echo "	showinfo		Display values for some key calculated variables"
-	@echo "	new			Diff against last tag"
-	@echo "	clog			Make a clog file containing top changelog entry"
-	@echo "	commit			Commit and push to GIT using the clog file as the log message"
-	@echo "	commitonly		Commit to GIT using the clog file as the log message"
-	@echo "	push			Push  to GIT after a git commit or make commitonly"
-	@echo "	clean			Remove srcs and srpm ($(NAME)-$(VERSION)-$(RELEASE).src.rpm)"
-	@echo "	patch SUFFIX=<suff>	Create and add a gendiff patch file"
-	@echo "	rediff SUFFIX=<suff>	Recreates a gendiff patch file, retaining comments"
-	@echo "	commiturl               displays https url of last commit diff"
-	@echo "	giturl                  displays https url for last tag"
-	@echo "	tagurl                  displays https url of diff between last two tags"
-	@echo "	unused-patches		Print list of patches not referenced by name in specfile"
-	@echo "	unused-fedora-patches	Print Fedora patches not used by Patch and/or ApplyPatch directives"
-	@echo "	gimmespec		Print the name of the specfile"
-	@echo "	update			Submit $(NAME)-$(VERSION)-$(RELEASE) as an update for $(BRANCH)"
+	@echo "========================================================================="
+	@echo "TARGET PARAMETER REVISION METHODOLOGY"
+	@echo "========================================================================="
+	@echo "  Your active Target parameter determines which SME/Contribs platform tags"
+	@echo "  will be evaluated for build pipelines, tagging loops, and Koji uploads."
+	@echo ""
+	@echo "  How TARGET is computed:"
+	@echo "    1. Manual Override: Pass it explicitly via CLI (e.g. make <command> TARGET=sme11)."
+	@echo "    2. Feature Branch: If on an 'sme*' or 'contribs*' branch, TARGET auto-locks"
+	@echo "                       directly to your current active git branch name."
+	@echo "    3. Master Fallback: If on 'master' with a pristine repository workspace,"
+	@echo "                       TARGET auto-expands into the complete version matrix"
+	@echo "                       contained in 'common/current'."
+	@echo ""
+	@echo "  Current Workspace State:"
+	@echo -e "    Active Git Branch: \033[32m$(GIT_BRANCH)\033[0m"
+	@echo -e "    Assigned Targets:  \033[33m$(TARGET)\033[0m"
+	@echo "========================================================================="
+	@echo ""
+	@echo "Available commands:"
+	@echo ""
+	@awk '/^## / { \
+	    if (match($$0, /^## [a-zA-Z\-_0-9%]+:/)) { \
+		currentCmd = substr($$0, 4, index($$0, ":") - 4); \
+		helpMessage = substr($$0, index($$0, ":") + 2); \
+		lineNum = 1000; \
+		printf "%s|||%d|||  \033[36m%-16s\033[0m %s\n", currentCmd, lineNum, currentCmd, helpMessage; \
+	    } else { \
+		if (currentCmd != "") { \
+		    lineNum++; \
+		    detailMessage = substr($$0, 4); \
+		    printf "%s|||%d|||                   %s\n", currentCmd, lineNum, detailMessage; \
+		} \
+	    } \
+	}' $(MAKEFILE_LIST) | sort -t'|' -k1,1 -k2,2n | cut -d'|' -f7-
 
+## gimmespec: Print the name of the specfile
 gimmespec:
 	@echo "$(SPECFILE)"
 
+## unused-patches: Display list of patches not referenced by name in the specfile
 unused-patches:
 	@for f in *.patch; do if [ -e $$f ]; then grep -q $$f $(SPECFILE) || echo $$f; fi; done
 
