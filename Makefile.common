@@ -461,7 +461,7 @@ run-tag-%:
 	    echo "- have you updated/committed the spec file?" >&2 ; \
 	    exit 1; \
 	fi ; \
-	\	
+	\
 	git tag $(TAG_OPTS) -a $$expanded_tag -m $$expanded_tag ; \
 	echo "Successfully tagged $* with: $$expanded_tag"
 
