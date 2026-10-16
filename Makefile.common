@@ -27,11 +27,11 @@ common-sync-check:
 		echo "         Skipping automatic update to preserve your local modifications." >&2 ; \
 	    else \
 		cd $(COMMON_DIR) && git fetch -q origin 2>/dev/null ; \
-		LOCAL_HASH=$$(cd $(COMMON_DIR) && git rev-parse HEAD 2>/dev/null) ; \
-		REMOTE_HASH=$$(cd $(COMMON_DIR) && git rev-parse @{u} 2>/dev/null) ; \
+		LOCAL_HASH=$$(git rev-parse HEAD 2>/dev/null) ; \
+		REMOTE_HASH=$$(git rev-parse @{u} 2>/dev/null) ; \
 		if [ "$$LOCAL_HASH" != "$$REMOTE_HASH" ]; then \
 		    echo "NOTICE: $(COMMON_DIR) is outdated! Pulling down current rules..." >&2 ; \
-		    cd $(COMMON_DIR) && git pull --rebase -q ; \
+		    git pull --rebase -q ; \
 		    echo "Successfully updated $(COMMON_DIR). Reloading Makefile..." >&2 ; \
 		fi \
 	    fi \
@@ -45,7 +45,7 @@ endif
 BASEDIR := $(shell basename `pwd`)
 
 # Capture any of your exact or wildcard build targets passed to the command line
-ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-% tagbuild,$(MAKECMDGOALS))
+ACTIVE_BUILD_GOALS := $(filter build chain-build scratch-build scratch-build-%,$(MAKECMDGOALS))
 
 # Automatically inject the workspace status check and target validation steps
 $(eval $(if $(ACTIVE_BUILD_GOALS), \
@@ -420,6 +420,7 @@ verrel:
 
 # showinfo: Display values of some of the key calculated variables
 showinfo:
+	$(info $$COMON_DIR is ${COMMON_DIR})
 	$(info $$PREF is ${PREF})
 	$(info $$GIT_URL is ${GIT_URL}) 
 	$(info $$GIT_BRANCH is ${GIT_BRANCH})
@@ -444,7 +445,7 @@ tag: $(SPECFILE) $(COMMON_DIR)/branches $(TAG_ACTIONS)
 
 .PHONY: run-tag-%
 run-tag-%:
-	@elver=$$(awk -F: -v target="$*" '$$1 == target { split($$0, fields, ":"); print fields[5] }' $(COMMON_DIR)/branches) ; \
+	 @elver=$$(awk -F: -v target="$*" '$$1 == target { split($$0, fields, ":"); print fields[5] }' $(COMMON_DIR)/branches) ; \
 	if [ -z "$$elver" ]; then echo "Unknown TARGET '$*'"; exit 1; fi ; \
 	expanded_tag=$$(echo "$(VERSION)-$(RELEASE)" | sed "s/\.el./.el$$elver/") ; \
 	\
