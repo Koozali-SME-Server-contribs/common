@@ -22,11 +22,12 @@ $(COMMON_DIR)/Makefile.common: common-sync-check
 .PHONY: common-sync-check
 common-sync-check:
 	@if [ -d "$(COMMON_DIR)/.git" ]; then \
-	    if cd $(COMMON_DIR) && git status --porcelain 2>/dev/null | grep -q . ; then \
+	    cd $(COMMON_DIR) ; \
+	    if git status --porcelain 2>/dev/null | grep -q . ; then \
 		echo "WARNING: $(COMMON_DIR) has unstaged or uncommitted changes!" >&2 ; \
 		echo "         Skipping automatic update to preserve your local modifications." >&2 ; \
 	    else \
-		cd $(COMMON_DIR) && git fetch -q origin 2>/dev/null ; \
+		git fetch -q origin 2>/dev/null ; \
 		LOCAL_HASH=$$(git rev-parse HEAD 2>/dev/null) ; \
 		REMOTE_HASH=$$(git rev-parse @{u} 2>/dev/null) ; \
 		if [ "$$LOCAL_HASH" != "$$REMOTE_HASH" ]; then \
