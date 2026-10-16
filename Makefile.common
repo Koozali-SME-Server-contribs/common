@@ -503,9 +503,9 @@ koji-build-%: koji-tool-check
 ## build: Request a build on koji for specified TARGET
 ##     Usage: make build or make build <target> or make build TARGET=<target>
 ##     Example: make build
-##     will trigger a build on koji for all arches with a TARGET=<default target> - see make help for more info
+##     -> will trigger a build on koji for all arches with a TARGET=<default target>
 ##     Example: make build sme12 or make build TARGET=sme12
-##     will trigger a build on koji for all arches with a TARGET=sme12
+##     -> will trigger a build on koji for all arches with a TARGET=sme12
 build: koji
 #else
 #build: plague
@@ -515,7 +515,7 @@ build: koji
 ## scratch-build: Request a scratch-build on koji for the specifief TARGET
 ##     Usage:   make scratch-build <target>
 ##     Example: make scratch-build sme12
-##     will trigger a scratch build on koji using the sme12-build for all arches 
+##     -> will trigger a scratch build on koji using the sme12-build for all arches 
 scratch-build: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
 	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
@@ -525,8 +525,8 @@ scratch-build: build-check
 # scratch-build will only use the first target and ignore all others (if it gets this far)
 ## scratch-build-%: Request a scratch-build on koji for the specified TARGET and arch
 ##     Usage:   make scratch-build-<arch> <target>
-##     Example: make scratch-build-aarm64 sme12
-##     will trigger a scratch build on koji using the sme12-build but only for aarch64 
+##     Example: make scratch-build-aarch64 sme12
+##     -> will trigger a scratch build on koji using the sme12-build but only for aarch64 
 scratch-build-%: build-check
 	@if [ ! -x "$(BUILD_CLIENT)" ]; then echo "Must have koji installed - see http://fedoraproject.org/wiki/BuildSystemClientSetup"; exit 1; fi
 	$(eval SCRATCH_TARGET := $(firstword $(TARGET)))
@@ -566,11 +566,11 @@ endif
 giturl:
 	 @echo '$(GIT_URL)'
 
-## commiturl: Display the url for the current commit
+## commiturl: Display a url for the current commit
 commiturl:
 	@echo '$(COMMIT_URL)'
 
-## tagurl: Display the url for the current git tag
+## tagurl: Display a url for comparing changes between the last git tag and this git tag
 tagurl:
 	@BASE_URL=$$(git config --get remote.origin.url | sed -E 's|ssh://gitea@git\.koozali\.org:2222/|https://src.koozali.org/|' | sed 's/\.git$$//'); \
 	TAGS=$$(git log --tags --simplify-by-decoration --pretty="format:%d" | grep -o 'tag: [^,)]*' | sed 's/tag: //' | head -n 2); \
@@ -586,7 +586,7 @@ tagurl:
 ## chain-build: Build multiple dependent packages in a sequential Koji chain
 ##     Usage:   make chain-build CHAIN="<pkg1> <pkg2> ..." [ TARGET=<target> ]
 ##     Example: make chain-build CHAIN="libwidget libgizmo" TARGET=sme12
-##     The current package is added to the end of the CHAIN list.
+##     -> The current package is added to the end of the CHAIN list.
 ##     Colons (:) can be used in the CHAIN parameter to define dependency groups.
 ##     Packages in a single group will be built in parallel, and all packages
 ##     in a group must build successfully and populate the repository before
