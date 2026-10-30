@@ -186,7 +186,10 @@ endif
 
 # Initialize the variables that we need, but are not defined
 # the version of the package
-VER_REL := $(shell rpm $(RPM_DEFINES) $(DIST_DEFINES) -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE)| head -1)
+# in koji, it has no access to TARGET, and the chroot has the right el/rhel tag
+# in case our detection fails it still will get the version right and the release close without sme..
+VER_REL := $(shell rpm $(RPM_DEFINES) $(DIST_DEFINES) -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE) 2>/dev/null| head -1)
+VER_REL := $(shell rpm -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE)| head -1)
 ifndef NAME
 $(error "You can not run this Makefile without having NAME defined")
 endif
@@ -434,6 +437,7 @@ showinfo:
 	$(info $$VERSION is ${VERSION})
 	$(info $$RELEASE is ${RELEASE})
 	$(info COMMIT is $(notdir $(COMMIT_URL)))
+	$(info DIST_DEFINES is ${DIST_DEFINES})
 #	$(info COMMIT URL is $(shell $(MAKE) --no-print-directory commiturl))
 	@:
 
