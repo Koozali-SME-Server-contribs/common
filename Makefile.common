@@ -188,8 +188,9 @@ endif
 # the version of the package
 # in koji, it has no access to TARGET, and the chroot has the right el/rhel tag
 # in case our detection fails it still will get the version right and the release close without sme..
-VER_REL := $(shell rpm $(RPM_DEFINES) $(DIST_DEFINES) -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE) 2>/dev/null| head -1)
-VER_REL := $(shell rpm -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE)| head -1)
+VER_REL1 := $(shell rpm $(RPM_DEFINES) $(DIST_DEFINES) -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE) 2>/dev/null| head -1)
+VER_REL2 := $(shell rpm -q --qf "%{VERSION} %{RELEASE}\n" --specfile $(SPECFILE)| head -1)
+VER_REL := $(or $(VER_REL1),$(VER_REL2))
 ifndef NAME
 $(error "You can not run this Makefile without having NAME defined")
 endif
